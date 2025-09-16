@@ -66,20 +66,38 @@ jobs:
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item $installerPath -Force
       
-      - name: Install Grimoire
+      - name: Download files to Downloads
         run: |
-          $url = "https://storage.googleapis.com/drive-bulk-export-anonymous/20250916T202549.602Z/4133399871716478688/80c6a878-7920-4a29-9cc1-e266aac82cc3/1/361632b6-cb27-414e-b60d-9cecbe093ccc?authuser"
-          $zipPath = "$env:TEMP\grimoire.zip"
-          $extractPath = "$env:USERPROFILE\Downloads\grimoire"
-          # Download file
-          Invoke-WebRequest -Uri $url -OutFile $zipPath
-          # Pastikan folder Downloads\grimoire ada
-          if (-not (Test-Path $extractPath)) {
-              New-Item -ItemType Directory -Path $extractPath | Out-Null
+          $downloads = Join-Path $env:USERPROFILE 'Downloads'
+          if (-not (Test-Path $downloads)) {
+            New-Item -ItemType Directory -Path $downloads | Out-Null
           }
-          # Extract ZIP ke Downloads\grimoire
-          Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-          Write-Host "Grimoire extracted to $extractPath"
+
+          $urls = @(
+            'https://cdn.cleanflash.org/CleanFlash_34.0.0.330_Installer.exe',
+            'https://storage.googleapis.com/drive-bulk-export-anonymous/20250916T202549.602Z/4133399871716478688/80c6a878-7920-4a29-9cc1-e266aac82cc3/1/361632b6-cb27-414e-b60d-9cecbe093ccc?authuser'
+          )
+
+          foreach ($u in $urls) {
+            try {
+              $uri = [System.Uri]::new($u)
+              $fileName = [System.IO.Path]::GetFileName($uri.AbsolutePath)
+
+              if ([string]::IsNullOrEmpty($fileName)) {
+                # jika URL tidak punya nama file di path, pakai fallback
+                $fileName = 'download_' + ([guid]::NewGuid().ToString())
+              }
+
+              $dest = Join-Path $downloads $fileName
+              Write-Host "Downloading $u -> $dest"
+              Invoke-WebRequest -Uri $u -OutFile $dest -UseBasicParsing -ErrorAction Stop
+              Write-Host "Saved: $dest"
+            } catch {
+              Write-Error "Failed downloading $u : $_"
+              exit 1
+            }
+          }
+
 
 
       - name: Establish Tailscale Connection
